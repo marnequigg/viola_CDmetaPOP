@@ -1,0 +1,178 @@
+---
+title: "viola_output"
+author: "m quigg"
+date: "2026-04-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Viola CDmetaPOP Simulation Visualization
+
+Basic commands and prep
+```{r}
+setwd("C:/Users/mquig/Desktop/DED/LandGen_viola_sims")
+
+library(tidyverse)
+library(tools)
+library(utils)
+```
+
+## Null Model
+This model does not incorporate herbivory or climate change.
+
+###Prep
+```{r}
+###import file
+data_null_pop = read.csv("summary_popAllTime_null.csv", stringsAsFactors = FALSE, sep = ",")
+data_null_class=read.csv("summary_classAllTime_null.csv", stringsAsFactors = FALSE, sep = ",")
+```
+
+*went extinct after 48 years
+
+### Total population over time
+```{r}
+###set up the data
+data_null_pop <- data_null_pop %>%
+  mutate(N_Initial = str_replace(N_Initial, "\\|$", ""))
+n_cols <- max(str_count(data_null_pop$N_Initial, "\\|"))
+patch_names <- c("patch_total", paste0("patch_", 1:n_cols))
+age_data_null <- data_null_pop %>%
+  separate(
+    N_Initial,
+    into = patch_names,
+    sep = "\\|",
+    convert = TRUE,
+    fill = "right")
+age_data_null_patches=age_data_null %>% 
+  select(Year, patch_total)
+
+###graph it
+ggplot(age_data_null_patches, aes(x = Year, y = patch_total)) +
+    geom_line(color = "steelblue", linewidth = 0.8) +
+    labs(title = "Population Size (null)", y = "Population Size", x = "Year") +
+  theme_classic()
+```
+This is good and accurate.
+
+```{r}
+####pop size by age class (cohorts)####
+###extract the data###
+age_data_null=read.table(text = data_null_class$N_Initial_Class, sep = "|")
+colnames(age_data_null)=paste0("Age_", 0:(ncol(age_data_null)-1))
+age_data_null$Year=data_null_class$Year
+
+###pivot the dataframe
+long_data_null=tidyr::pivot_longer(age_data_null, cols = starts_with("Age_"), names_to = "Ages", values_to = "Count")
+
+cohort_data_null=long_data_null %>% 
+  separate(Ages, into = c("delete", "Age"), sep = "_")
+###make proper type
+cohort_data_null$Age=as.numeric(cohort_data_null$Age)
+
+###organize into classes
+cohort_data_null=cohort_data_null %>% 
+  mutate(
+    cohort = case_when(
+      Age <=5 ~ "Ages 0-5",
+      Age >= 6 & Age <=10 ~ "Ages 6-10",
+      Age >= 11 & Age <=15 ~ "Ages 11-15",
+      Age >= 16 & Age <=20 ~ "Ages 16-20",
+      Age >= 21 & Age <=25 ~ "Ages 21-25")) %>% 
+  na.omit() %>% 
+  select(-delete, -Age)
+
+###summarize populations in classes
+cohort_data2_null=cohort_data_null %>% 
+  group_by(Year, cohort)
+cohort_data3_table_null= cohort_data2_null %>% 
+  summarise(total_count= sum(Count))
+
+###graph it  
+ggplot(cohort_data3_table_null, aes(x = Year, y = total_count, color = cohort)) +
+  geom_line(linewidth = 1) +
+  theme_classic() +
+  labs(x = "Year", y = "Population", color = "Cohort") +
+  ggtitle("Population by Cohort (null)")
+```
+
+## Herbivory
+This is to visualize the scenario with the output of herbivory simulations.
+###Prep
+```{r}
+###import file
+data_herb_pop = read.csv("summary_popAllTime_herb.csv", stringsAsFactors = FALSE, sep = ",")
+data_herb_class=read.csv("summary_classAllTime_herb.csv", stringsAsFactors = FALSE, sep = ",")
+```
+
+*went extinct after 48 years
+
+### Total population over time
+```{r}
+###set up the data
+data_herb_pop <- data_herb_pop %>%
+  mutate(N_Initial = str_replace(N_Initial, "\\|$", ""))
+n_cols <- max(str_count(data_herb_pop$N_Initial, "\\|"))
+patch_names <- c("patch_total", paste0("patch_", 1:n_cols))
+age_data_herb <- data_herb_pop %>%
+  separate(
+    N_Initial,
+    into = patch_names,
+    sep = "\\|",
+    convert = TRUE,
+    fill = "right")
+age_data_herb_patches=age_data_herb %>% 
+  select(Year, patch_total)
+
+###graph it
+ggplot(age_data_herb_patches, aes(x = Year, y = patch_total)) +
+    geom_line(color = "steelblue", linewidth = 0.8) +
+    labs(title = "Population Size (herbivory)", y = "Population Size", x = "Year") +
+  theme_classic() +
+  geom_vline(xintercept = 48, color = "red")
+```
+This is good and accurate.
+
+```{r}
+####pop size by age class (cohorts)####
+###extract the data###
+age_data_herb=read.table(text = data_herb_class$N_Initial_Class, sep = "|")
+colnames(age_data_herb)=paste0("Age_", 0:(ncol(age_data_herb)-1))
+age_data_herb$Year=data_herb_class$Year
+
+###pivot the dataframe
+long_data_herb=tidyr::pivot_longer(age_data_herb, cols = starts_with("Age_"), names_to = "Ages", values_to = "Count")
+
+cohort_data_herb=long_data_herb %>% 
+  separate(Ages, into = c("delete", "Age"), sep = "_")
+###make proper type
+cohort_data_herb$Age=as.numeric(cohort_data_herb$Age)
+
+###organize into classes
+cohort_data_herb=cohort_data_herb %>% 
+  mutate(
+    cohort = case_when(
+      Age <=5 ~ "Ages 0-5",
+      Age >= 6 & Age <=10 ~ "Ages 6-10",
+      Age >= 11 & Age <=15 ~ "Ages 11-15",
+      Age >= 16 & Age <=20 ~ "Ages 16-20",
+      Age >= 21 & Age <=25 ~ "Ages 21-25")) %>% 
+  na.omit() %>% 
+  select(-delete, -Age)
+
+###summarize populations in classes
+cohort_data2_herb=cohort_data_herb %>% 
+  group_by(Year, cohort)
+cohort_data3_table_herb= cohort_data2_herb %>% 
+  summarise(total_count= sum(Count))
+
+###graph it  
+ggplot(cohort_data3_table_herb, aes(x = Year, y = total_count, color = cohort)) +
+  geom_line(linewidth = 1) +
+  theme_classic() +
+  labs(x = "Year", y = "Count", color = "Cohort") +
+  ggtitle("Population by Cohort (herbivory)")
+```
+Yay it worked!

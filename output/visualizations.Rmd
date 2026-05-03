@@ -12,7 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 #Viola CDmetaPOP Simulation Visualization
 
 Basic commands and prep
-```{r}
+```{r, include=FALSE}
 setwd("C:/Users/mquig/Desktop/DED/LandGen_viola_sims")
 
 library(tidyverse)
@@ -30,7 +30,6 @@ data_null_pop = read.csv("summary_popAllTime_null.csv", stringsAsFactors = FALSE
 data_null_class=read.csv("summary_classAllTime_null.csv", stringsAsFactors = FALSE, sep = ",")
 ```
 
-*went extinct after 48 years
 
 ### Total population over time
 ```{r}
@@ -97,6 +96,98 @@ ggplot(cohort_data3_table_null, aes(x = Year, y = total_count, color = cohort)) 
   labs(x = "Year", y = "Population", color = "Cohort") +
   ggtitle("Population by Cohort (null)")
 ```
+###Population by Patch over time
+NOw I want to take a look at the population of each patch over time.
+```{r}
+###extract pop data by patch
+pop_patch_null=data_null_pop %>% 
+  select(Year, N_Initial) %>% 
+  separate(N_Initial, into = c("all", paste0("patch_", 1:9)), sep = "\\|", extra = "drop") %>% 
+  mutate(across(starts_with("patch_"), as.numeric))
+ 
+###pivot
+long_pop_patch_null=tidyr::pivot_longer(pop_patch_null, cols = starts_with("patch_"), names_to = "Patch", values_to = "Population")
+
+###graph it
+ggplot(long_pop_patch_null, aes(x = Year, y = Population, color = Patch)) +
+  geom_line(linewidth = 1) +
+  theme_classic() +
+  labs(x = "Year", y = "Population Size", color = "Patch") +
+  ggtitle("Population of Each Patch Over Time") +
+  geom_vline(xintercept = 25, color = "black", linetype = "dashed")
+```
+
+
+
+
+###Heterozygosity over time
+Heterozygosity information can be found in the pop file.
+```{r}
+####observed heterozygosity####
+###extract observed heterozygosity data
+obs_het_null=data_null_pop %>% 
+  select(Year, Ho) %>% 
+  separate(Ho, into = c("all", paste0("patch_", 1:9)), sep = "\\|", extra = "drop") %>% 
+  mutate(across(starts_with("patch_"), as.numeric))
+#%>% 
+#  rowwise() %>%
+#  mutate(mean = mean(c_across(starts_with("patch")), na.rm = TRUE)) %>%
+#  ungroup()
+
+###pivot
+long_obs_het_null=tidyr::pivot_longer(obs_het_null, cols = starts_with("patch_"), names_to = "Patch", values_to = "Ho")
+
+###graph it
+ggplot(long_obs_het_null, aes(x = Year, y = Ho, color = Patch)) +
+  geom_line(linewidth = 1) +
+  theme_classic() +
+  labs(x = "Year", y = "Ho", color = "Patch") +
+  ggtitle("Observed Heterozygosity Over Time") +
+  geom_vline(xintercept = 25, color = "black", linetype = "dashed")
+
+####expected heterozygosity####
+###extract observed heterozygosity data
+ex_het_null=data_null_pop %>% 
+  select(Year, He) %>% 
+  separate(He, into = c("all", paste0("patch_", 1:9)), sep = "\\|", extra = "drop")  %>% 
+    mutate(across(starts_with("patch_"), as.numeric))
+#  rowwise() %>%
+#  mutate(mean = mean(c_across(starts_with("patch")), na.rm = TRUE)) %>%
+#  ungroup()
+
+###pivot
+long_ex_het_null=
+  tidyr::pivot_longer(ex_het_null, cols = starts_with("patch_"), names_to = "Patch", values_to = "He")
+
+###graph it
+ggplot(long_ex_het_null, aes(x = Year, y = He, color = Patch)) +
+  geom_line(linewidth = 1) +
+  theme_classic() +
+  labs(x = "Year", y = "He", color = "Patch") +
+  ggtitle("Expected Heterozygosity Over Time") +
+  geom_vline(xintercept = 25, color = "black", linetype = "dashed")
+
+####both####
+###extract mean values across patches
+mean_obs_het_null=obs_het_null %>% 
+  select(Year, all) %>% 
+  rename(Ho=all)
+mean_ex_het_null=ex_het_null %>% 
+  select(Year, all) %>% 
+  rename(He=all)
+###conbine dataframe
+mean_het_null=left_join(mean_obs_het_null, mean_ex_het_null, by = "Year")
+###pivot
+long_mean_het_null=tidyr::pivot_longer(mean_het_null, cols = c("Ho", "He"), names_to = "Heterozygosity", values_to = "mean_values")
+###graph it
+ggplot(long_mean_het_null, aes(x = Year, y = as.numeric(mean_values), color = Heterozygosity)) +
+  geom_line(linewidth = 1) +
+  theme_classic() +
+  labs(x = "Year", y = "Heterozygosity") +
+  ggtitle("Heterozygosity Over Time Across all Patches")+
+  geom_vline(xintercept = 25, color = "black", linetype = "dashed")
+```
+
 
 ## Herbivory
 This is to visualize the scenario with the output of herbivory simulations.

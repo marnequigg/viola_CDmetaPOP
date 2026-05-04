@@ -1,0 +1,320 @@
+---
+title: "null_visualizations_MC3"
+author: "m quigg"
+date: "2026-05-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Viola CDmetaPOP Simulation Visualization
+This is to visualize the 3 MC replicates of the null model.  
+
+## Set up
+### Working Driectory and Library
+```{r, include=FALSE}
+setwd("C:/Users/mquig/Desktop/DED/LandGen_viola_sims")
+
+library(tidyverse)
+library(tools)
+library(utils)
+```
+
+### Import Files
+```{r}
+#### MC1 ####
+data_null_pop_MC1 = read.csv("C:/Users/mquig/Desktop/DED/LandGen_viola_sims/run0batch0mc0species0/summary_popAllTime.csv", stringsAsFactors = FALSE, sep = ",")
+
+data_null_class_MC1=read.csv("C:/Users/mquig/Desktop/DED/LandGen_viola_sims/run0batch0mc0species0/summary_classAllTime.csv", stringsAsFactors = FALSE, sep = ",")
+
+
+#### MC2 ####
+data_null_pop_MC2 = read.csv("C:/Users/mquig/Desktop/DED/LandGen_viola_sims/run0batch0mc1species0/summary_popAllTime.csv", stringsAsFactors = FALSE, sep = ",")
+
+data_null_class_MC2=read.csv("C:/Users/mquig/Desktop/DED/LandGen_viola_sims/run0batch0mc1species0/summary_classAllTime.csv", stringsAsFactors = FALSE, sep = ",")
+
+
+#### MC3 ####
+data_null_pop_MC3 = read.csv("C:/Users/mquig/Desktop/DED/LandGen_viola_sims/run0batch0mc2species0/summary_popAllTime.csv", stringsAsFactors = FALSE, sep = ",")
+
+data_null_class_MC3=read.csv("C:/Users/mquig/Desktop/DED/LandGen_viola_sims/run0batch0mc2species0/summary_classAllTime.csv", stringsAsFactors = FALSE, sep = ",")
+```
+
+## Population Over Time
+The goal is to make a graph that depicts the total population across all patches over time, for each of the MCs. It is a line graph with 3 lines, one for each replicate.
+```{r}
+#### Extract the data ####
+
+### MC1 ###
+pop_size_MC1=data_null_pop_MC1 %>% 
+  select(Year, N_Initial) %>% 
+  separate(N_Initial, into = c("MC1", paste0("patch_", 1:9)), sep = "\\|", extra = "drop")  %>% 
+    mutate(across(starts_with("patch_"), as.numeric)) %>% 
+  select(Year, MC1)
+
+### MC2 ###
+pop_size_MC2=data_null_pop_MC2 %>% 
+  select(Year, N_Initial) %>% 
+  separate(N_Initial, into = c("MC2", paste0("patch_", 1:9)), sep = "\\|", extra = "drop")  %>% 
+    mutate(across(starts_with("patch_"), as.numeric)) %>% 
+  select(Year, MC2)
+
+### MC3 ###
+pop_size_MC3=data_null_pop_MC3 %>% 
+  select(Year, N_Initial) %>% 
+  separate(N_Initial, into = c("MC3", paste0("patch_", 1:9)), sep = "\\|", extra = "drop")  %>% 
+    mutate(across(starts_with("patch_"), as.numeric)) %>% 
+  select(Year, MC3)
+
+
+#### Make new dataframe ####
+###combine dataframes
+pop_size_MC=merge(merge(pop_size_MC1, pop_size_MC2, by="Year"), pop_size_MC3, by="Year")
+
+###Convert to long format for graphing
+pop_size_long=tidyr::pivot_longer(pop_size_MC, cols = starts_with("MC"), names_to = "MC", values_to = "Population Size")
+
+#### graph it! ####
+ggplot(pop_size_long, aes(x = Year, y = as.numeric(`Population Size`), color = MC)) +
+  geom_line(linewidth = 1, alpha = 0.6) +
+  theme_classic() +
+  labs(x = "Year", y = "Population", color = "MC") +
+  ggtitle("Total Population")
+```
+
+## Population Size by Cohort
+The goal here is to create 3 graphs (one per MC) that show the distribution of population size based on age classes.
+```{r}
+#### Extract the age data ####
+### MC 1###
+age_pop_MC1=data_null_class_MC1 %>% 
+  select(Year, N_Initial_Class) %>% 
+  separate(N_Initial_Class, into = c("MC1", paste0("age_", 0:24)), sep = "\\|", extra = "drop")  %>% 
+    mutate(across(starts_with("age_"), as.numeric)) %>% 
+  select(-MC1)
+
+### MC 2###
+age_pop_MC2=data_null_class_MC2 %>% 
+  select(Year, N_Initial_Class) %>% 
+  separate(N_Initial_Class, into = c("MC2", paste0("age_", 0:24)), sep = "\\|", extra = "drop")  %>% 
+    mutate(across(starts_with("age_"), as.numeric)) %>% 
+  select(-MC2)
+
+### MC 3###
+age_pop_MC3=data_null_class_MC3 %>% 
+  select(Year, N_Initial_Class) %>% 
+  separate(N_Initial_Class, into = c("MC3", paste0("age_", 0:24)), sep = "\\|", extra = "drop")  %>% 
+    mutate(across(starts_with("age_"), as.numeric)) %>% 
+  select(-MC3)
+
+#### convert to long format ####
+### MC1 ###
+##pivot
+long_age_MC1=tidyr::pivot_longer(age_pop_MC1, cols = starts_with("age_"), names_to = "Age", values_to = "Population")
+##clean up columns
+cohort_age_MC1=long_age_MC1 %>% 
+  separate(Age, into = c("delete", "Age"), sep = "_") %>% 
+  select(-delete)
+cohort_age_MC1$Age=as.numeric(cohort_age_MC1$Age)
+
+
+### MC2 ###
+##pivot
+long_age_MC2=tidyr::pivot_longer(age_pop_MC2, cols = starts_with("age_"), names_to = "Age", values_to = "Population")
+##clean up columns
+cohort_age_MC2=long_age_MC2 %>% 
+  separate(Age, into = c("delete", "Age"), sep = "_") %>% 
+  select(-delete) 
+cohort_age_MC2$Age=as.numeric(cohort_age_MC2$Age)
+
+### MC3 ###
+##pivot
+long_age_MC3=tidyr::pivot_longer(age_pop_MC3, cols = starts_with("age_"), names_to = "Age", values_to = "Population")
+##clean up columns
+cohort_age_MC3=long_age_MC3 %>% 
+  separate(Age, into = c("delete", "Age"), sep = "_") %>% 
+  select(-delete)
+cohort_age_MC3$Age=as.numeric(cohort_age_MC3$Age)
+
+
+#### group into cohorts ####
+### MC1 ###
+##organize into classes
+cohort_MC1=cohort_age_MC1 %>% 
+  mutate(
+    cohort = case_when(
+      Age <=5 ~ "Ages 0-5",
+      Age >= 6 & Age <=10 ~ "Ages 6-10",
+      Age >= 11 & Age <=15 ~ "Ages 11-15",
+      Age >= 16 & Age <=20 ~ "Ages 16-20",
+      Age >= 21 & Age <=25 ~ "Ages 21-25")) %>% 
+  na.omit() %>% 
+  select(-Age)
+##summarize populations in classes
+cohort_MC1_summary=cohort_MC1 %>% 
+  group_by(Year, cohort) %>% 
+  summarise(population=sum(Population))
+
+### MC1 ###
+##organize into classes
+cohort_MC2=cohort_age_MC2 %>% 
+  mutate(
+    cohort = case_when(
+      Age <=5 ~ "Ages 0-5",
+      Age >= 6 & Age <=10 ~ "Ages 6-10",
+      Age >= 11 & Age <=15 ~ "Ages 11-15",
+      Age >= 16 & Age <=20 ~ "Ages 16-20",
+      Age >= 21 & Age <=25 ~ "Ages 21-25")) %>% 
+  na.omit() %>% 
+  select(-Age)
+##summarize populations in classes
+cohort_MC2_summary=cohort_MC2 %>% 
+  group_by(Year, cohort) %>% 
+  summarise(population=sum(Population))
+
+### MC1 ###
+##organize into classes
+cohort_MC3=cohort_age_MC3 %>% 
+  mutate(
+    cohort = case_when(
+      Age <=5 ~ "Ages 0-5",
+      Age >= 6 & Age <=10 ~ "Ages 6-10",
+      Age >= 11 & Age <=15 ~ "Ages 11-15",
+      Age >= 16 & Age <=20 ~ "Ages 16-20",
+      Age >= 21 & Age <=25 ~ "Ages 21-25")) %>% 
+  na.omit() %>% 
+  select(-Age)
+##summarize populations in classes
+cohort_MC3_summary=cohort_MC3 %>% 
+  group_by(Year, cohort) %>% 
+  summarise(population=sum(Population))
+
+#### graph it ####
+### MC1 ###
+ggplot(cohort_MC1_summary, aes(x = Year, y = population, color = cohort)) +
+  geom_line(linewidth = 1) +
+  theme_classic() +
+  labs(x = "Year", y = "Population", color = "Cohort") +
+  ggtitle("MC1")
+
+### MC2 ###
+ggplot(cohort_MC2_summary, aes(x = Year, y = population, color = cohort)) +
+  geom_line(linewidth = 1) +
+  theme_classic() +
+  labs(x = "Year", y = "Population", color = "Cohort") +
+  ggtitle("MC2")
+
+### MC3 ###
+ggplot(cohort_MC3_summary, aes(x = Year, y = population, color = cohort)) +
+  geom_line(linewidth = 1) +
+  theme_classic() +
+  labs(x = "Year", y = "Population", color = "Cohort") +
+  ggtitle("MC3")
+```
+## Population by Patch
+The goal here is to create 3 graphs (one for each MC) depicting the population by patch over time.
+```{r}
+#### MC1 ####
+###extract pop data by patch
+pop_patch_MC1=data_null_pop_MC1 %>% 
+  select(Year, N_Initial) %>% 
+  separate(N_Initial, into = c("all", paste0("patch_", 1:9)), sep = "\\|", extra = "drop") %>% 
+  mutate(across(starts_with("patch_"), as.numeric))
+ 
+###pivot
+long_pop_patch_MC1=tidyr::pivot_longer(pop_patch_MC1, cols = starts_with("patch_"), names_to = "Patch", values_to = "Population")
+
+###graph it
+ggplot(long_pop_patch_MC1, aes(x = Year, y = Population, color = Patch)) +
+  geom_line(linewidth = 1) +
+  theme_classic() +
+  labs(x = "Year", y = "Population Size", color = "Patch") +
+  ggtitle("MC1") 
+  #+ geom_vline(xintercept = 25, color = "black", linetype = "dashed")
+  
+#### MC2 ####
+###extract pop data by patch
+pop_patch_MC2=data_null_pop_MC2 %>% 
+  select(Year, N_Initial) %>% 
+  separate(N_Initial, into = c("all", paste0("patch_", 1:9)), sep = "\\|", extra = "drop") %>% 
+  mutate(across(starts_with("patch_"), as.numeric))
+ 
+###pivot
+long_pop_patch_MC2=tidyr::pivot_longer(pop_patch_MC2, cols = starts_with("patch_"), names_to = "Patch", values_to = "Population")
+
+###graph it
+ggplot(long_pop_patch_MC2, aes(x = Year, y = Population, color = Patch)) +
+  geom_line(linewidth = 1) +
+  theme_classic() +
+  labs(x = "Year", y = "Population Size", color = "Patch") +
+  ggtitle("MC2")   
+  #+ geom_vline(xintercept = 25, color = "black", linetype = "dashed")
+  
+#### MC3 ####
+###extract pop data by patch
+pop_patch_MC3=data_null_pop_MC3 %>% 
+  select(Year, N_Initial) %>% 
+  separate(N_Initial, into = c("all", paste0("patch_", 1:9)), sep = "\\|", extra = "drop") %>% 
+  mutate(across(starts_with("patch_"), as.numeric))
+ 
+###pivot
+long_pop_patch_MC3=tidyr::pivot_longer(pop_patch_MC3, cols = starts_with("patch_"), names_to = "Patch", values_to = "Population")
+
+###graph it
+ggplot(long_pop_patch_MC3, aes(x = Year, y = Population, color = Patch)) +
+  geom_line(linewidth = 1) +
+  theme_classic() +
+  labs(x = "Year", y = "Population Size", color = "Patch") +
+  ggtitle("MC3")   
+  #+ geom_vline(xintercept = 25, color = "black", linetype = "dashed")
+```
+## Heterozygosity
+I want one graph with observed and expected heterozygosity for each of the MC replicates.
+```{r}
+#### extract data ####
+### MC1 ###
+het_MC1=data_null_pop_MC1 %>% 
+  select(Year, Ho, He) %>% 
+  separate(Ho, into = c("Ho_MC1", paste0("Ho_patch_", 1:9)), sep = "\\|", extra = "drop") %>% 
+  separate(He, into = c("He_MC1", paste0("He_patch_", 1:9)), sep = "\\|", extra = "drop") %>% 
+  mutate(across(starts_with("Ho"), as.numeric)) %>% 
+  mutate(across(starts_with("He"), as.numeric)) %>% 
+  select(Year, Ho_MC1, He_MC1)
+
+### MC2 ###
+het_MC2=data_null_pop_MC2 %>% 
+  select(Year, Ho, He) %>% 
+  separate(Ho, into = c("Ho_MC2", paste0("Ho_patch_", 1:9)), sep = "\\|", extra = "drop") %>% 
+  separate(He, into = c("He_MC2", paste0("He_patch_", 1:9)), sep = "\\|", extra = "drop") %>% 
+  mutate(across(starts_with("Ho"), as.numeric)) %>% 
+  mutate(across(starts_with("He"), as.numeric)) %>% 
+  select(Year, Ho_MC2, He_MC2)
+
+### MC3 ###
+het_MC3=data_null_pop_MC3 %>% 
+  select(Year, Ho, He) %>% 
+  separate(Ho, into = c("Ho_MC3", paste0("Ho_patch_", 1:9)), sep = "\\|", extra = "drop") %>% 
+  separate(He, into = c("He_MC3", paste0("He_patch_", 1:9)), sep = "\\|", extra = "drop") %>% 
+  mutate(across(starts_with("Ho"), as.numeric)) %>% 
+  mutate(across(starts_with("He"), as.numeric)) %>% 
+  select(Year, Ho_MC3, He_MC3)
+
+#### Make new dataframe ####
+###combine dataframes
+het_MC=merge(merge(het_MC1, het_MC2, by="Year"), het_MC3, by="Year")
+
+###Convert to long format for graphing
+het_long=tidyr::pivot_longer(het_MC, cols = starts_with("H"), names_to = "Replicate", values_to = "Heterozygosity")
+
+#### graph it! ####
+ggplot(het_long, aes(x = Year, y = Heterozygosity, color = Replicate)) +
+  geom_line(linewidth = 1) +
+  #scale_color_manual(values = c("He_MC1" = "#A0CBE8", "Ho_MC1" = "#4E79A7", "He_MC2" = "#F1CE63", "Ho_MC2" = "#B6992D", "He_MC3" = "#8CD17D", "Ho_MC3" = "#59A14F")) +
+  theme_classic() +
+  #theme(legend.position = c(0.9, 0.3)) +
+  labs(x = "Year", y = "Heterozygosity") +
+  ggtitle("Heterozygosity")+
+  geom_vline(xintercept = 25, color = "black", linetype = "dashed")
+```

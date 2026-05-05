@@ -76,11 +76,22 @@ pop_size_MC=merge(merge(pop_size_MC1, pop_size_MC2, by="Year"), pop_size_MC3, by
 ###Convert to long format for graphing
 pop_size_long=tidyr::pivot_longer(pop_size_MC, cols = starts_with("MC"), names_to = "MC", values_to = "Population Size")
 
+###calculate CIs###
+pop_summary=pop_size_long %>% 
+  group_by(Year) %>% 
+  summarize(n=length(`Population Size`),
+            mean=mean(as.numeric(`Population Size`)),
+            sd=sd(`Population Size`),
+            se=sd/sqrt(n),
+            lower.CI=mean-(1.96*se),
+            upper.CI=mean+(1.96*se))
+
 #### graph it! ####
-ggplot(pop_size_long, aes(x = Year, y = as.numeric(`Population Size`), color = MC)) +
-  geom_line(linewidth = 1, alpha = 0.6) +
+ggplot(pop_summary, aes(x = Year, y = as.numeric(mean))) +
+  geom_line(linewidth = 1, color = "#60b74d") +
+  geom_ribbon(aes(ymin = lower.CI, ymax = upper.CI), alpha = 0.4, color = "#60b74d") +
   theme_classic() +
-  labs(x = "Year", y = "Population", color = "MC") +
+  labs(x = "Year", y = "Population") +
   ggtitle("Total Population")
 ```
 
@@ -155,9 +166,9 @@ cohort_MC1=cohort_age_MC1 %>%
 ##summarize populations in classes
 cohort_MC1_summary=cohort_MC1 %>% 
   group_by(Year, cohort) %>% 
-  summarise(population=sum(Population))
+  summarise(population_MC1=sum(Population))
 
-### MC1 ###
+### MC2 ###
 ##organize into classes
 cohort_MC2=cohort_age_MC2 %>% 
   mutate(
@@ -172,9 +183,9 @@ cohort_MC2=cohort_age_MC2 %>%
 ##summarize populations in classes
 cohort_MC2_summary=cohort_MC2 %>% 
   group_by(Year, cohort) %>% 
-  summarise(population=sum(Population))
+  summarise(population_MC2=sum(Population))
 
-### MC1 ###
+### MC3 ###
 ##organize into classes
 cohort_MC3=cohort_age_MC3 %>% 
   mutate(
@@ -189,30 +200,93 @@ cohort_MC3=cohort_age_MC3 %>%
 ##summarize populations in classes
 cohort_MC3_summary=cohort_MC3 %>% 
   group_by(Year, cohort) %>% 
-  summarise(population=sum(Population))
+  summarise(population_MC3=sum(Population))
 
 #### graph it ####
 ### MC1 ###
-ggplot(cohort_MC1_summary, aes(x = Year, y = population, color = cohort)) +
+ggplot(cohort_MC1_summary, aes(x = Year, y = population_MC1, color = cohort)) +
   geom_line(linewidth = 1) +
   theme_classic() +
   labs(x = "Year", y = "Population", color = "Cohort") +
   ggtitle("MC1")
 
 ### MC2 ###
-ggplot(cohort_MC2_summary, aes(x = Year, y = population, color = cohort)) +
+ggplot(cohort_MC2_summary, aes(x = Year, y = population_MC2, color = cohort)) +
   geom_line(linewidth = 1) +
   theme_classic() +
   labs(x = "Year", y = "Population", color = "Cohort") +
   ggtitle("MC2")
 
 ### MC3 ###
-ggplot(cohort_MC3_summary, aes(x = Year, y = population, color = cohort)) +
+ggplot(cohort_MC3_summary, aes(x = Year, y = population_MC3, color = cohort)) +
   geom_line(linewidth = 1) +
   theme_classic() +
   labs(x = "Year", y = "Population", color = "Cohort") +
   ggtitle("MC3")
 ```
+### Cohort with Confidence Intervals
+The goal is to make one graph with all of the cohort pop sizes on one graph with confidence intervals.
+```{r}
+#### Extract and process all MC replicates ####
+
+process_mc <- function(data, mc_num) {
+  data %>%
+    select(Year, N_Initial_Class) %>%
+    separate(N_Initial_Class, 
+             into = c("drop_col", paste0("age_", 0:24)), 
+             sep = "\\|", extra = "drop") %>%
+    mutate(across(starts_with("age_"), as.numeric)) %>%
+    select(-drop_col) %>%
+    pivot_longer(cols = starts_with("age_"), 
+                 names_to = "Age", 
+                 values_to = "Population") %>%
+    separate(Age, into = c("delete", "Age"), sep = "_") %>%
+    select(-delete) %>%
+    mutate(
+      Age = as.numeric(Age),
+      cohort = case_when(
+        Age <= 5              ~ "Ages 0-5",
+        Age >= 6  & Age <= 10 ~ "Ages 6-10",
+        Age >= 11 & Age <= 15 ~ "Ages 11-15",
+        Age >= 16 & Age <= 20 ~ "Ages 16-20",
+        Age >= 21 & Age <= 25 ~ "Ages 21-25"),
+      MC = paste0("MC", mc_num)) %>%
+    na.omit() %>%
+    select(-Age) %>%
+    group_by(Year, cohort, MC) %>%
+    summarise(Population = sum(Population), .groups = "drop")
+}
+
+# Process each replicate
+mc1 <- process_mc(data_null_class_MC1, 1)
+mc2 <- process_mc(data_null_class_MC2, 2)
+mc3 <- process_mc(data_null_class_MC3, 3)
+
+#### Combine and calculate mean + 95% CI ####
+
+cohort_combined <- bind_rows(mc1, mc2, mc3) %>%
+  group_by(Year, cohort) %>%
+  summarise(
+    mean_pop = mean(Population),
+    sd_pop   = sd(Population),
+    n        = n(),
+    se       = sd_pop / sqrt(n),
+    ci_lower = mean_pop - qt(0.95, df = n - 1) * se,
+    ci_upper = mean_pop + qt(0.95, df = n - 1) * se,
+    .groups = "drop"
+  )
+
+#### Plot ####
+
+ggplot(cohort_combined, aes(x = Year, y = mean_pop, color = cohort, fill = cohort)) +
+  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), alpha = 0.2, color = NA) +
+  geom_line(linewidth = 1) +
+  theme_classic() +
+  labs(x = "Year", y = "Population", color = "Cohort", fill = "Cohort",
+       title = "Mean Population by Cohort (± 95% CI across MC replicates)")
+
+```
+
 ## Population by Patch
 The goal here is to create 3 graphs (one for each MC) depicting the population by patch over time.
 ```{r}
@@ -270,6 +344,54 @@ ggplot(long_pop_patch_MC3, aes(x = Year, y = Population, color = Patch)) +
   ggtitle("MC3")   
   #+ geom_vline(xintercept = 25, color = "black", linetype = "dashed")
 ```
+### Patch population with CI
+```{r}
+#### Process all MC replicates ####
+
+process_mc_patch <- function(data, mc_num) {
+  data %>%
+    select(Year, N_Initial) %>%
+    separate(N_Initial,
+             into = c("all", paste0("patch_", 1:9)),
+             sep = "\\|", extra = "drop") %>%
+    mutate(across(starts_with("patch_"), as.numeric)) %>%
+    select(-all) %>%
+    pivot_longer(cols = starts_with("patch_"),
+                 names_to = "Patch",
+                 values_to = "Population") %>%
+    mutate(MC = paste0("MC", mc_num))
+}
+
+mc1_patch <- process_mc_patch(data_null_pop_MC1, 1)
+mc2_patch <- process_mc_patch(data_null_pop_MC2, 2)
+mc3_patch <- process_mc_patch(data_null_pop_MC3, 3)
+
+#### Combine and calculate mean + 95% CI ####
+
+patch_combined <- bind_rows(mc1_patch, mc2_patch, mc3_patch) %>%
+  group_by(Year, Patch) %>%
+  summarise(
+    mean_pop = mean(Population),
+    sd_pop   = sd(Population),
+    n        = n(),
+    se       = sd_pop / sqrt(n),
+    ci_lower = mean_pop - qt(0.975, df = n - 1) * se,
+    ci_upper = mean_pop + qt(0.975, df = n - 1) * se,
+    .groups = "drop"
+  )
+
+#### Plot ####
+
+ggplot(patch_combined, aes(x = Year, y = mean_pop, color = Patch, fill = Patch)) +
+  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), alpha = 0.2, color = NA) +
+  geom_line(linewidth = 1) +
+  theme_classic() +
+  labs(x = "Year", y = "Population Size", color = "Patch", fill = "Patch",
+       title = "Mean Population by Patch (± 95% CI across MC replicates)")
+  #+ geom_vline(xintercept = 25, color = "black", linetype = "dashed")
+```
+
+
 ## Heterozygosity
 I want one graph with observed and expected heterozygosity for each of the MC replicates.
 ```{r}
@@ -316,5 +438,50 @@ ggplot(het_long, aes(x = Year, y = Heterozygosity, color = Replicate)) +
   #theme(legend.position = c(0.9, 0.3)) +
   labs(x = "Year", y = "Heterozygosity") +
   ggtitle("Heterozygosity")+
+  geom_vline(xintercept = 25, color = "black", linetype = "dashed")
+```
+
+###One graph with CIs
+```{r}
+#### Process all MC replicates ####
+
+process_mc_het <- function(data, mc_num) {
+  data %>%
+    select(Year, Ho, He) %>%
+    separate(Ho, into = c("Ho_val", paste0("Ho_patch_", 1:9)), sep = "\\|", extra = "drop") %>%
+    separate(He, into = c("He_val", paste0("He_patch_", 1:9)), sep = "\\|", extra = "drop") %>%
+    mutate(across(starts_with("Ho"), as.numeric),
+           across(starts_with("He"), as.numeric)) %>%
+    select(Year, Ho = Ho_val, He = He_val) %>%
+    pivot_longer(cols = c(Ho, He), names_to = "Metric", values_to = "Heterozygosity") %>%
+    mutate(MC = paste0("MC", mc_num))
+}
+
+mc1_het <- process_mc_het(data_null_pop_MC1, 1)
+mc2_het <- process_mc_het(data_null_pop_MC2, 2)
+mc3_het <- process_mc_het(data_null_pop_MC3, 3)
+
+#### Combine and calculate mean + 95% CI ####
+
+het_combined <- bind_rows(mc1_het, mc2_het, mc3_het) %>%
+  group_by(Year, Metric) %>%
+  summarise(
+    mean_het = mean(Heterozygosity),
+    sd_het   = sd(Heterozygosity),
+    n        = n(),
+    se       = sd_het / sqrt(n),
+    ci_lower = mean_het - qt(0.975, df = n - 1) * se,
+    ci_upper = mean_het + qt(0.975, df = n - 1) * se,
+    .groups = "drop"
+  )
+
+#### Plot ####
+
+ggplot(het_combined, aes(x = Year, y = mean_het, color = Metric, fill = Metric)) +
+  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), alpha = 0.2, color = NA) +
+  geom_line(linewidth = 1) +
+  theme_classic() +
+  labs(x = "Year", y = "Heterozygosity", color = "Metric", fill = "Metric",
+       title = "Heterozygosity (± 95% CI across MC replicates)") +
   geom_vline(xintercept = 25, color = "black", linetype = "dashed")
 ```
